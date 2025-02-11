@@ -36,8 +36,12 @@ if [ $1 = "-i" ]; then
 fi
 
 if [ $1 = "-d" ]; then
-    
-
+	sudo systemctl stop cups
+ 	sudo apt-get remove --purge cups cups-daemon cups-client
+	sudo apt-get autoremove --purge
+	sudo rm -rf /etc/cups
+ 	cups-config --version
+fi
 
 if [ $1 = "-cups" ]; then
 	ip=$(hostname -I | awk '{print $1}')
