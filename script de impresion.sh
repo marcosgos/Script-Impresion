@@ -12,7 +12,7 @@ echo "[-p] Cambiar el puerto"
 echo "[-u] Configurar Firewall"
 echo "[-cups] Abre en Firefox Cups"
 echo "[-otros] Mas opciones..."
-echo ""
+echo "y"
 
 
 
