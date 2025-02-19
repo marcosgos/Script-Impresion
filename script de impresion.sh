@@ -60,11 +60,20 @@ case $1 in
         sudo apt-get autoremove --purge -y
         sudo rm -rf /etc/cups
         ;;
-    -s)  
-        sudo systemctl status cups
-        ;;
+    -s) 
+        servicio="cups"
+        if systemctl list-units --type=service | grep -q "$servicio.service"; then
+            sudo systemctl status "$servicio"
+        else
+            echo "El servicio $servicio no esta instalado, Primero instalalo con [-i]."
+        fi
     -c)  
-        sudo nano /etc/cups/cupsd.conf
+        archivo="/etc/cups/cupsd.conf"
+        if [ -f "$archivo" ]; then
+                sudo nano "$archivo"
+        else
+                echo "El archivo $archivo no existe.Primero instala el Servicio [-i]"
+        fi
         ;;
     -r)
         echo "Elige una opción:"
