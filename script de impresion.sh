@@ -2,7 +2,9 @@
 
 case $1 in
     --help)
-        echo "impresión [--help] [-i] [-d] [-s] [-c] [-r] [-p] [-u] [-cups] [-otros]" 
+        echo "Nombre de la máquina: $(hostname) - IP: $(hostname -I | awk '{print $1}')"
+        echo ""
+        echo "Parametros: [--help] [-i] [-d] [-s] [-c] [-r] [-p] [-u] [-l] [-cups] [-otros]" 
         echo "" 
         echo "[--help] Muestra la ayuda" 
         echo "[-i] Instala el servicio" 
@@ -12,54 +14,47 @@ case $1 in
         echo "[-r] Reinicia el Servicio"
         echo "[-p] Cambiar el puerto"
         echo "[-u] Configurar Firewall"
+        echo "[-l] Consultar logs del servicio"
         echo "[-cups] Abre en Firefox CUPS"
         echo "[-otros] Más opciones..."
         echo ""
         ;;
-    -otros)
-        echo "Elige una Opción:"
-        echo ""
-        echo "1- Generar Archivo para impresión"
-        echo "2- Mostrar los archivos impresos"
-        echo "3- Conversión de PDF a WORD de los archivos impresos"
-        echo "4- Recursos que está usando Cups"
-        echo "5- Copia de Seguridad en Zip"
-        echo ""
-        read -r test
-        case $test in
-            1) 
-                echo "Funcionalidad no implementada"
-                ;;
-            2) 
-                ls -l "$HOME/pdf"
-                ;;
-            3) 
-                echo "Archivo convertido (Funcionalidad no implementada)"
-                ;;
-            4) 
-                top -p "$(pgrep -d',' cups)"
-                ;;
-            5) 
-                sudo cp /etc/cups/cupsd.conf "$HOME/Escritorio/cupsd.conf.backup"
-                zip "$HOME/Escritorio/cupsd_backup.zip" "$HOME/Escritorio/cupsd.conf.backup"
-                ;;
-            *) 
-                echo "Opción no válida, elige un número entre 1 y 5"
-                ;;
-        esac
+    -i)
+        servicio="cups"
+        if systemctl is-active --quiet "$servicio"; then
+            echo "El servicio $servicio ya está instalado y activo."
+        else
+            echo "El servicio $servicio no está instalado o no está activo. Procediendo con la instalación..."
+            sudo apt update
+            sudo apt upgrade -y
+            sudo apt install -y cups cups-pdf
+            sudo usermod -a -G lpadmin "$USER"
+            echo "El servicio $servicio ha sido instalado y está activo."
+        fi
         ;;
-    -i)  
-        sudo apt update
-        sudo apt upgrade -y
-        sudo apt install -y cups cups-pdf
-        sudo usermod -a -G lpadmin "$USER"
-        ;;
-    -d)  
+    -d)
+        servicio="cups"
+        
+        if ! find / -name cupsd.conf 2>/dev/null | grep -q "cupsd.conf"; then
+            echo "El servicio $servicio no está instalado. No hay nada que desinstalar."
+            exit 1
+        fi
+        
+        echo "Deteniendo el servicio CUPS..."
         sudo systemctl stop cups
+        
+        echo "Eliminando paquetes de CUPS..."
         sudo apt-get remove --purge -y cups cups-daemon cups-client
+        
+        echo "Eliminando dependencias innecesarias..."
         sudo apt-get autoremove --purge -y
+        
+        echo "Eliminando archivos de configuración de CUPS..."
         sudo rm -rf /etc/cups
+        
+        echo "CUPS ha sido completamente eliminado."
         ;;
+
     -s) 
         servicio="cups"
         if systemctl list-units --type=service | grep -q "$servicio.service"; then
@@ -67,12 +62,13 @@ case $1 in
         else
             echo "El servicio $servicio no esta instalado, Primero instalalo con [-i]."
         fi
+        ;;
     -c)  
         archivo="/etc/cups/cupsd.conf"
         if [ -f "$archivo" ]; then
                 sudo nano "$archivo"
         else
-                echo "El archivo $archivo no existe.Primero instala el Servicio [-i]"
+                echo "El archivo $archivo no existe. Primero instala el Servicio [-i]"
         fi
         ;;
     -r)
@@ -84,9 +80,36 @@ case $1 in
         echo ""
         read -r opcion
         case $opcion in
-            1) sudo systemctl restart cups ;;
-            2) sudo systemctl stop cups ;;
-            3) sudo systemctl start cups ;;
+            1) 
+                servicio="cups"
+                if systemctl list-units --type=service | grep -q "$servicio.service"; then
+                sudo systemctl restart cups 
+                echo "El servicio se esta reiniciando..."
+                else
+                    echo "El servicio $servicio no esta instalado, Primero instalalo con [-i]."
+                fi
+                ;;
+
+            2) 
+                servicio="cups"
+                if systemctl list-units --type=service | grep -q "$servicio.service"; then
+                sudo systemctl stop cups 
+                echo "El servicio se a parado..."
+                else
+                    echo "El servicio $servicio no esta instalado, Primero instalalo con [-i]."
+                fi
+                ;;
+
+            3) 
+                servicio="cups"
+                if systemctl list-units --type=service | grep -q "$servicio.service"; then
+                sudo systemctl start cups 
+                echo "El servicio se esta iniciando..."
+                else
+                    echo "El servicio $servicio no esta instalado, Primero instalalo con [-i]."
+                fi
+                ;;
+
             *) echo "Opción no válida, elige entre 1, 2 o 3" ;;
         esac
         ;;
