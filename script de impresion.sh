@@ -42,6 +42,45 @@ case $1 in
                 fi
                 ;;
             2)
+                CONTAINER_NAME="cups-server"
+                IMAGE_NAME="custom-cups"
+
+                if ! command -v docker &> /dev/null; then
+                    sudo apt update && sudo apt install -y docker.io
+                    sudo systemctl start docker
+                    sudo systemctl enable docker
+                fi
+
+                cat <<EOF > Dockerfile
+                FROM ubuntu:latest
+                RUN apt-get update && apt-get install -y cups && \
+                    usermod -aG lpadmin root && \
+                    mkdir -p /var/run/cups && \
+                    chmod -R 777 /var/run/cups
+                COPY cupsd.conf /etc/cups/cupsd.conf
+                EXPOSE 631
+                CMD ["/usr/sbin/cupsd", "-f"]
+EOF
+
+                cat <<EOF > cupsd.conf
+                LogLevel warn
+                Listen 0.0.0.0:631
+                Browsing On
+                DefaultAuthType Basic
+                WebInterface Yes
+EOF
+
+                docker build -t $IMAGE_NAME .
+
+                if [ "$(docker ps -aq -f name=$CONTAINER_NAME)" ]; then
+                    docker rm -f $CONTAINER_NAME
+                fi
+
+                docker run -d --name $CONTAINER_NAME -p 631:631 --privileged $IMAGE_NAME
+
+                rm -f Dockerfile cupsd.conf
+
+                echo "CUPS ha sido instalado y está corriendo en el puerto 631."
                 ;;
             3)
                 if ! command -v ansible &> /dev/null
@@ -101,7 +140,7 @@ case $1 in
                         rule: allow
                         port: 631
                         proto: tcp
-                EOF
+EOF
 
                 echo "Ejecutando el playbook de Ansible..."
                 ansible-playbook -i ansible-cups/host ansible-cups/cups.yml --ask-become-pass
