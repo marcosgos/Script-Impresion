@@ -20,17 +20,95 @@ case $1 in
         echo ""
         ;;
     -i)
-        servicio="cups"
-        if systemctl is-active --quiet "$servicio"; then
-            echo "El servicio $servicio ya está instalado y activo."
-        else
-            echo "El servicio $servicio no está instalado o no está activo. Procediendo con la instalación..."
-            sudo apt update
-            sudo apt upgrade -y
-            sudo apt install -y cups cups-pdf
-            sudo usermod -a -G lpadmin "$USER"
-            echo "El servicio $servicio ha sido instalado y está activo."
-        fi
+        echo "Elige una opción:"
+        echo ""
+        echo "1- Instalar CUPS local"
+        echo "2- Instalar CUPS docker"
+        echo "3- Instalar CUPS ansible"
+        echo ""
+        read -r opcion
+        case $opcion in
+            1) 
+                servicio="cups"
+                if systemctl is-active --quiet "$servicio"; then
+                    echo "El servicio $servicio ya está instalado y activo."
+                else
+                    echo "El servicio $servicio no está instalado o no está activo. Procediendo con la instalación..."
+                    sudo apt update
+                    sudo apt upgrade -y
+                    sudo apt install -y cups cups-pdf
+                    sudo usermod -a -G lpadmin "$USER"
+                    echo "El servicio $servicio ha sido instalado y está activo."
+                fi
+                ;;
+            2)
+                ;;
+            3)
+                if ! command -v ansible &> /dev/null
+                then
+                    echo "Instalando Ansible..."
+                    sudo apt update
+                    sudo apt install -y ansible
+                else
+                    echo "Ansible ya está instalado."
+                fi
+
+                mkdir -p ansible-cups
+
+                echo "Escribe la IP de la máquina en la que quieras instalar el servicio: "
+                read ip
+                echo "Escribe el nombre del usuario: "
+                read nombre
+                echo "Escribe la contraseña del usuario: "
+                read -s pass  # Oculta la contraseña mientras se escribe
+
+                archivo="ansible-cups/host"
+                echo "[webservers]" > $archivo
+                echo "$ip ansible_ssh_user=$nombre ansible_ssh_pass=$pass" >> $archivo
+
+                cat <<EOF > ansible-cups/cups.yml
+                ---
+                - name: Instalar y Configurar CUPS
+                hosts: webservers
+                become: yes
+
+                tasks:
+                    - name: Instalar CUPS
+                    apt:
+                        name: cups
+                        state: present
+                        update_cache: yes
+
+                    - name: Habilitar y Arrancar el Servicio de CUPS
+                    systemd:
+                        name: cups
+                        state: started
+                        enabled: yes
+
+                    - name: Configurar CUPS ip
+                    lineinfile:
+                        path: /etc/cups/cupsd.conf
+                        line: "Listen 0.0.0.0:631"
+                        insertafter: "^#Listen localhost:631"
+
+                    - name: Reiniciar CUPS
+                    service:
+                        name: cups
+                        state: restarted
+
+                    - name: Permitir puerto 631
+                    ufw:
+                        rule: allow
+                        port: 631
+                        proto: tcp
+                EOF
+
+                echo "Ejecutando el playbook de Ansible..."
+                ansible-playbook -i ansible-cups/host ansible-cups/cups.yml --ask-become-pass
+                ;;
+                
+             *) echo "Opción no válida, elige entre 1, 2 o 3" ;;
+        esac
         ;;
     -d)
         servicio="cups"
